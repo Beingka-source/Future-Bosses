@@ -1,5 +1,5 @@
-import { ArrowDown, ArrowUp, DollarSign, Users, ShoppingBag, AlertTriangle } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
+import { AlertTriangle, ArrowDown, ArrowUp, DollarSign, ShoppingBag, Users } from "lucide-react"
 
 export function StatsCards() {
   return (
