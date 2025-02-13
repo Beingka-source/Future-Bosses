@@ -4,11 +4,11 @@ import { Button } from "@/src/components/ui/button"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/src/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs"
 import cn from "classnames"
-import { Circle, Clock, Mail, Phone, Plus, TableIcon, Users } from "lucide-react"
+import { Circle, Clock, Edit, Mail, Phone, Plus, PlusCircle, TableIcon, Users } from "lucide-react"
 import { useState } from "react"
 import { AddOrderDialog } from "./add-order-dialog"
+import { AddTableDialog } from "./add-table-dialog"
 import { CustomerInputDialog } from "./customer-input-dialog"
-import { MenuSelectionDialog } from "./menu-selection-dialog"
 import { Table } from "./table"
 
 export type TableStatus = "available" | "occupied" | "ordered" | "serving" | "reserved"
@@ -148,7 +148,8 @@ export function FloorPlan() {
   const [showCustomerInputDialog, setShowCustomerInputDialog] = useState(false)
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [tables, setTables] = useState<TableData[]>(initialTables)
-  const [showMenuDialog, setShowMenuDialog] = useState(false)
+  const [showAddTableDialog, setShowAddTableDialog] = useState(false)
+  const [isRemoveMode, setIsRemoveMode] = useState(false)
 
   const calculateTableTotal = (orders: OrderItem[]) => {
     return orders
@@ -201,12 +202,6 @@ export function FloorPlan() {
               </div>
             )}
           </div>
-          <Button
-            className="w-full bg-[#f77700] hover:bg-[#f77700]/90 text-white"
-            onClick={() => handleConfirmArrival(selectedTable.id)}
-          >
-            Confirm Arrival
-          </Button>
         </div>
       )
     }
@@ -287,18 +282,25 @@ export function FloorPlan() {
   }
 
   const handleTableClick = (table: TableData) => {
+    if (isRemoveMode) {
+      handleRemoveTable(table.id)
+      return
+    }
+
     if (table.status === "available") {
       setSelectedTableId(table.id)
       setShowCustomerInputDialog(true)
-    } else if (table.status === "occupied") {
-      setSelectedTableId(table.id)
-      setShowMenuDialog(true)
-    } else if (table.status === "ordered" || table.status === "serving" || table.status === "reserved") {
+    } else if (
+      table.status === "ordered" ||
+      table.status === "serving" ||
+      table.status === "occupied" ||
+      table.status === "reserved"
+    ) {
       setSelectedTable(table)
     }
   }
 
-  const handleCustomerInput = (data: { numberOfCustomers: number }) => {
+  const handleCustomerInput = (data: { numberOfCustomers: number; totalCost: number }) => {
     if (selectedTableId) {
       setTables((prevTables) =>
         prevTables.map((table) =>
@@ -307,13 +309,14 @@ export function FloorPlan() {
               ...table,
               status: "occupied",
               numberOfCustomers: data.numberOfCustomers,
+              totalCost: data.totalCost,
             }
             : table,
         ),
       )
-      setShowMenuDialog(true)
     }
     setShowCustomerInputDialog(false)
+    setSelectedTableId(null)
   }
 
   const handleCompleteTable = (tableId: string) => {
@@ -332,50 +335,14 @@ export function FloorPlan() {
     )
   }
 
-  const handleConfirmArrival = (tableId: string) => {
-    setTables((prevTables) =>
-      prevTables.map((table) =>
-        table.id === tableId
-          ? {
-            ...table,
-            status: "occupied",
-            numberOfCustomers: table.booking?.numberOfGuests || 0,
-          }
-          : table,
-      ),
-    )
-    setSelectedTableId(tableId)
-    setShowMenuDialog(true)
-    setSelectedTable(null)
+  const handleRemoveTable = (tableId: string) => {
+    setTables((prevTables) => prevTables.filter((table) => table.id !== tableId))
+    setIsRemoveMode(false) // Optionally exit remove mode after removing a table
   }
 
-  const handleMenuSelection = (selectedItems: { id: string; name: string; quantity: number; price: number }[]) => {
-    if (selectedTableId) {
-      setTables((prevTables) =>
-        prevTables.map((table) =>
-          table.id === selectedTableId
-            ? {
-              ...table,
-              status: "ordered",
-              orders: [
-                ...table.orders,
-                ...selectedItems.map((item) => ({
-                  id: `o${Date.now()}-${item.id}`,
-                  name: item.name,
-                  quantity: item.quantity,
-                  price: item.price,
-                  status: "pending" as const,
-                })),
-              ],
-              totalCost:
-                (table.totalCost || 0) + selectedItems.reduce((total, item) => total + item.price * item.quantity, 0),
-            }
-            : table,
-        ),
-      )
-    }
-    setShowMenuDialog(false)
-    setSelectedTableId(null)
+  const handleAddTable = (newTable: Omit<TableData, "id">) => {
+    const id = `t${tables.length + 1}`
+    setTables([...tables, { ...newTable, id }])
   }
 
   return (
@@ -418,21 +385,58 @@ export function FloorPlan() {
       </div>
 
       <div className="relative min-h-[600px] rounded-lg border bg-white p-8">
-        <div className="bg-gray-100 p-4 rounded-lg">
-          <div className="grid grid-cols-4 gap-8">
-            {tables.map((table) => (
-              <Table
-                key={table.id}
-                table={table}
-                onClick={() => handleTableClick(table)}
-                onComplete={() => handleCompleteTable(table.id)}
-              />
-            ))}
-            <div className="col-span-1 flex aspect-square items-center justify-center rounded-lg border border-dashed">
-              <div className="text-center">
-                <TableIcon className="mx-auto h-8 w-8 text-gray-400" />
-                <span className="mt-2 block text-sm text-gray-500">Cashier</span>
+        {isRemoveMode && (
+          <div className="absolute inset-0 bg-red-100 bg-opacity-50 flex items-center justify-center z-10">
+            <p className="text-red-600 font-semibold">Click on a table to remove it</p>
+          </div>
+        )}
+        <div className="flex gap-8">
+          {/* Floor Plan Grid */}
+          <div className="flex-1 bg-gray-100 p-4 rounded-lg relative">
+            <div className="grid grid-cols-4 gap-8">
+              {tables.map((table) => (
+                <Table
+                  key={table.id}
+                  table={table}
+                  onClick={() => handleTableClick(table)}
+                  onComplete={() => handleCompleteTable(table.id)}
+                  isRemoveMode={isRemoveMode}
+                  onRemove={() => handleRemoveTable(table.id)} // Add this line
+                />
+              ))}
+              <div className="col-span-1 flex aspect-square items-center justify-center rounded-lg border border-dashed relative">
+                <div className="text-center">
+                  <TableIcon className="mx-auto h-8 w-8 text-gray-400" />
+                  <span className="mt-2 block text-sm text-gray-500">Cashier</span>
+                </div>
               </div>
+            </div>
+
+            {/* Add Table and Edit Buttons */}
+            <div className="absolute bottom-4 right-4 flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "flex items-center gap-2 rounded-xl border-2 border-dashed p-2",
+                  isRemoveMode
+                    ? "border-red-500 text-red-500 bg-red-50"
+                    : "border-gray-300 hover:border-red-500 hover:text-red-500 hover:bg-red-50",
+                )}
+                onClick={() => setIsRemoveMode(!isRemoveMode)}
+              >
+                <Edit className="h-4 w-4" />
+                <span className="font-medium">{isRemoveMode ? "Cancel Remove" : "Remove Table"}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 rounded-xl border-2 border-dashed border-gray-300 p-2 hover:border-[#f77700] hover:text-[#f77700] hover:bg-orange-50"
+                onClick={() => setShowAddTableDialog(true)}
+              >
+                <PlusCircle className="h-4 w-4" />
+                <span className="font-medium">Add Table</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -447,9 +451,7 @@ export function FloorPlan() {
           </SheetHeader>
           <div className="py-4">{renderTableDetails()}</div>
           <SheetFooter>
-            <Button onClick={() => setSelectedTable(null)} className="w-full">
-              Close
-            </Button>
+            <Button onClick={() => setSelectedTable(null)}>Close</Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -478,9 +480,8 @@ export function FloorPlan() {
         open={showCustomerInputDialog}
         onOpenChange={setShowCustomerInputDialog}
         onSubmit={handleCustomerInput}
-        initialCustomers={tables.find((t) => t.id === selectedTableId)?.booking?.numberOfGuests || 1}
       />
-      <MenuSelectionDialog open={showMenuDialog} onOpenChange={setShowMenuDialog} onSelectItems={handleMenuSelection} />
+      <AddTableDialog open={showAddTableDialog} onOpenChange={setShowAddTableDialog} onAddTable={handleAddTable} />
     </div>
   )
 }
