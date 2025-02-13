@@ -337,7 +337,8 @@ export function FloorPlan() {
 
   const handleRemoveTable = (tableId: string) => {
     setTables((prevTables) => prevTables.filter((table) => table.id !== tableId))
-    setIsRemoveMode(false) // Optionally exit remove mode after removing a table
+    // Remove the following line to keep the remove mode active after deleting a table
+    // setIsRemoveMode(false)
   }
 
   const handleAddTable = (newTable: Omit<TableData, "id">) => {
@@ -401,7 +402,7 @@ export function FloorPlan() {
                   onClick={() => handleTableClick(table)}
                   onComplete={() => handleCompleteTable(table.id)}
                   isRemoveMode={isRemoveMode}
-                  onRemove={() => handleRemoveTable(table.id)} // Add this line
+                  onRemove={() => handleRemoveTable(table.id)}
                 />
               ))}
               <div className="col-span-1 flex aspect-square items-center justify-center rounded-lg border border-dashed relative">
